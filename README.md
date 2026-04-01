@@ -1,70 +1,114 @@
-# javasas
+# ETL Testing Copilot — VS Code Setup Guide
 
+This folder contains a complete set of custom GitHub Copilot agent definitions
+for ETL testing workflows, requiring **no Python or additional code**.
 
-import com.sas.iom.SASIOMDefs.StringSeqHolder;
-import com.sas.iom.SAS.ILanguageService;
-import com.sas.iom.SAS.IWorkspace;
-import com.sas.iom.WorkspaceFactory;
+---
 
-import java.util.Properties;
+## Folder Structure
 
-public class SASJobStatusChecker {
+```
+your-project/
+├── .github/
+│   ├── copilot-instructions.md       ← Global workspace instructions
+│   └── agents/
+│       ├── orchestrator.md           ← Brain: routes tasks to sub-agents
+│       ├── metadata-engineer.md      ← Extracts schema & mapping metadata
+│       ├── test-designer.md          ← Generates test cases & SQL scripts
+│       └── data-generator.md         ← Creates synthetic test datasets
+└── README.md                         ← This file
+```
 
-    public static void main(String[] args) {
-        String serverHost = "your.server.com";  // Replace with SAS server
-        int serverPort = 8591;  // Adjust the port if necessary
-        String username = "your_username";
-        String password = "your_password";
-        String sasCode = "DATA test; SET sashelp.class; RUN;";  // Example SAS Job
+---
 
-        try {
-            // Establish a connection to the SAS workspace
-            Properties props = new Properties();
-            props.setProperty("host", serverHost);
-            props.setProperty("port", String.valueOf(serverPort));
-            props.setProperty("userName", username);
-            props.setProperty("password", password);
+## Prerequisites
 
-            WorkspaceFactory factory = new WorkspaceFactory();
-            IWorkspace workspace = factory.createWorkspace(props);
-            ILanguageService langService = workspace.LanguageService();
+- **VS Code** v1.99 or later
+- **GitHub Copilot** extension installed and signed in
+- **GitHub Copilot Chat** extension installed
 
-            // Submit the SAS Job
-            langService.Submit(sasCode);
-            System.out.println("SAS job submitted successfully!");
+---
 
-            // Monitor execution status
-            StringSeqHolder log = new StringSeqHolder();
-            boolean isRunning = true;
+## How to Install
 
-            while (isRunning) {
-                Thread.sleep(2000); // Poll every 2 seconds
-                langService.FlushListLines(log);
-                
-                for (String line : log.value) {
-                    System.out.println(line);
-                    if (line.contains("ERROR")) {
-                        System.out.println("SAS Job encountered an error.");
-                        isRunning = false;
-                    } else if (line.contains("NOTE: The DATA step has been executed")) {
-                        System.out.println("SAS Job completed successfully!");
-                        isRunning = false;
-                    }
-                }
-            }
+1. Copy the `.github/` folder into the **root of your project**.
+2. Open the project in VS Code.
+3. Open the Copilot Chat panel (`Ctrl+Alt+I` / `Cmd+Alt+I`).
+4. The agents will be available automatically — no restart needed.
 
-            // Retrieve execution log
-            langService.FlushLogLines(0, log);
-            System.out.println("Execution Log:");
-            for (String line : log.value) {
-                System.out.println(line);
-            }
+---
 
-            // Close the workspace connection
-            workspace.Close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-}
+## How to Use Each Agent
 
+### Option A — Use the Orchestrator (Recommended)
+
+In Copilot Chat, type `@orchestrator` and describe your task:
+
+```
+@orchestrator I have source table SALES_SRC and target SALES_TGT.
+The business rule is: only load records where REGION = 'EMEA'
+and ORDER_DATE > '2024-01-01'.
+```
+
+The Orchestrator will decide which specialist agent to call.
+
+---
+
+### Option B — Call Specialist Agents Directly
+
+#### Metadata Engineer
+```
+@metadata-engineer
+Source table: ORDERS_SRC
+Target table: ORDERS_TGT
+Environment: DEV
+```
+
+#### Test Designer
+```
+@test-designer
+Business rule: Only active customers (STATUS='A') with orders over $500 should load.
+Use the mapping shell from the metadata-engineer output above.
+```
+
+#### Data Generator
+```
+@data-generator
+Generate 30 rows for the ORDERS_TGT schema including edge cases and bad data.
+Schema: [paste JSON mapping shell here]
+```
+
+---
+
+## Agent Capabilities at a Glance
+
+| Agent              | What It Produces                                          |
+|--------------------|-----------------------------------------------------------|
+| Orchestrator       | Task routing + quality gate validation                    |
+| Metadata Engineer  | Column metadata tables + JSON mapping shells              |
+| Test Designer      | Test case register + SQL validation scripts (4 categories)|
+| Data Generator     | Synthetic dataset (Markdown table + CSV) with full coverage|
+
+---
+
+## ETL Testing Stages Covered
+
+| Stage                  | Agent Responsible           |
+|------------------------|-----------------------------|
+| Requirements Analysis  | Orchestrator                |
+| Source Validation      | Metadata Engineer           |
+| Test Design            | Test Designer               |
+| Data Extraction        | Metadata Engineer           |
+| Transformation Validation | Test Designer            |
+| Loading Validation     | Test Designer               |
+| Reporting              | Test Designer (register)    |
+| Closure                | Orchestrator (quality gate) |
+
+---
+
+## Tips
+
+- Always run **Metadata Engineer first** — other agents depend on its output.
+- Paste the JSON mapping shell directly into Test Designer and Data Generator prompts.
+- Use the **Data Generator's bad data rows** as inputs to verify your SQL error-handling scripts.
+- The `SCENARIO` column in generated datasets maps directly to test case IDs in the register.
